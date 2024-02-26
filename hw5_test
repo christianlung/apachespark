@@ -1,0 +1,97 @@
+#!/bin/bash
+ZIP_FILE=hw5.zip
+TMP_DIR=/tmp/p5-grading/
+REQUIRED_FILES=("bookPairs.py" "titlePairs.py")
+DATA_FILE1="/home/cs143/data/goodreads.dat"
+DATA_FILE2="/home/cs143/data/goodreads_titles.dat"
+DATA_FILE3="/home/cs143/data/part1.dat"
+MAIN_CODE1="bookPairs.py" 
+MAIN_CODE2="titlePairs.py"
+
+rm -fr output1 output2
+
+function error_exit()
+{
+   echo "ERROR: $1" 1>&2
+   rm -rf ${TMP_DIR}
+   exit 1
+}
+
+# use user-provided parameter as the zip file name
+if [ $# -eq 1 ]; then
+    ZIP_FILE=$1
+fi
+
+# make sure that the script runs on VM
+if [ `whoami` != "cs143" ]; then
+     error_exit "You need to run this script within the container"
+fi
+
+# check the data file existence
+if [ ! -f ${DATA_FILE1} ]; then
+    error_exit "File ${DATA_FILE1} does not exist. This script cannot be executed without the file."
+fi
+if [ ! -f ${DATA_FILE2} ]; then
+    error_exit "File ${DATA_FILE2} does not exist. This script cannot be executed without the file."
+fi
+if [ ! -f ${DATA_FILE3} ]; then
+    error_exit "File ${DATA_FILE3} does not exist. This script cannot be executed without the file."
+fi
+
+# clean any existing files
+rm -rf ${TMP_DIR}
+
+# create temporary directory used for grading
+mkdir -p ${TMP_DIR}
+
+# unzip the zip file
+if [ ! -f ${ZIP_FILE} ]; then
+    error_exit "Cannot find ${ZIP_FILE}"
+fi
+unzip -q -d ${TMP_DIR} ${ZIP_FILE}
+if [ "$?" -ne "0" ]; then
+    error_exit "Cannot unzip ${ZIP_FILE} to ${TMP_DIR}"
+fi
+
+# change directory to the partc folder
+cd ${TMP_DIR}
+
+# check the existence of the required files
+for FILE in ${REQUIRED_FILES[@]}
+do
+    if [ ! -f ${FILE} ]; then
+        error_exit "Cannot find ${FILE} in the root folder of ${ZIP_FILE}"
+    fi
+done
+
+# run the student code
+echo "Executing your Spark code for Part 1....." 1>&2
+spark-submit ${MAIN_CODE1}
+
+# check if the expected output directory and files have been generated
+if [ ! -d '/home/cs143/output1' ]; then
+    error_exit "Output directory "output1" was not created by your Spark code"
+fi
+if [ ! -f '/home/cs143/output1/part-00000' ]; then
+    error_exit "Cannot find the output file output1/part-00000 after your code is run"
+fi
+head -5 /home/cs143/output1/part-00000* 1>&2
+
+echo "Executing your Spark code for Part 2....." 1>&2
+spark-submit ${MAIN_CODE2}
+
+# check if the expected output directory and files have been generated
+if [ ! -d '/home/cs143/output2' ]; then
+    error_exit "Output directory "output2" was not created by your Spark code"
+fi
+if ! ls /home/cs143/output2/part-0*; then
+    error_exit "Cannot find any output files like output2/part-0* after your code is run"
+fi
+head -5 /home/cs143/output2/part-0* 1>&2
+
+# clean up
+rm -rf ${TMP_DIR}
+
+echo
+echo "SUCCESS! We finished testing your zip file integrity." 1>&2
+exit 0
